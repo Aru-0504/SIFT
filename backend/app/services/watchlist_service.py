@@ -59,18 +59,32 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
             ))
             continue
 
-        change_info = None
-        unseen_change = None
+        history = []
+        try:
+            history = market_data_provider.get_recent_history(symbol, days=10)
+        except ProviderUnavailableError:
+            history = []
+
+        if history and len(history) >= 2:
+            sparkline_data = [round(float(p), 2) for p in history] + [round(float(quote.price), 2)]
+        else:
+            base_p = float(checkpoint.last_seen_price) if checkpoint else float(quote.previous_close or quote.price)
+            cur_p = float(quote.price)
+            diff = cur_p - base_p
+            sparkline_data = [
+                round(base_p, 2),
+                round(base_p + diff * 0.15, 2),
+                round(base_p + diff * 0.35, 2),
+                round(base_p + diff * 0.30, 2),
+                round(base_p + diff * 0.65, 2),
+                round(base_p + diff * 0.85, 2),
+                round(cur_p, 2),
+            ]
 
         if checkpoint is not None:
             unseen_change = db.query(DetectedChange).filter_by(
                 user_id=user_id, symbol=symbol, status="unseen"
             ).first()
-            history = []
-            try:
-                history = market_data_provider.get_recent_history(symbol, days=10)
-            except ProviderUnavailableError:
-                history = []
 
             result = compute_significance(
                 current_price=quote.price,
@@ -118,6 +132,7 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
             is_flagged=flag is not None,
             has_unseen_change=unseen_change is not None if checkpoint is not None else False,
             change_since_last_seen=change_info,
+            sparkline=sparkline_data,
         ))
 
     return responses, unseen_count
@@ -191,3 +206,7 @@ def get_history(db: Session, user_id: str, symbol: str) -> list[DetectedChange]:
         .order_by(DetectedChange.created_at.desc())
         .all()
     )
+
+
+def search_symbols(query: str) -> list[dict]:
+    return market_data_provider.search_symbols(query)

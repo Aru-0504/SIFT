@@ -1,4 +1,4 @@
-import { WatchlistResponse, ChangeHistoryEntry } from './types'
+import { WatchlistResponse, ChangeHistoryEntry, SymbolSearchResult } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -76,5 +76,12 @@ export const api = {
     return fetch(`${BASE_URL}/watchlist/items/${encodeURIComponent(symbol)}/history`, {
       headers,
     }).then((r) => handle<ChangeHistoryEntry[]>(r))
+  },
+
+  searchSymbols: async (query: string) => {
+    const headers = await authHeaders()
+    return fetch(`${BASE_URL}/watchlist/search?q=${encodeURIComponent(query)}`, {
+      headers,
+    }).then((r) => handle<SymbolSearchResult[]>(r))
   },
 }

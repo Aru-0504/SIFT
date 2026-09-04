@@ -18,6 +18,7 @@ export interface WatchlistItem {
   is_flagged: boolean
   has_unseen_change: boolean
   change_since_last_seen: ChangeInfo | null
+  sparkline?: number[]
 }
 
 export interface WatchlistResponse {
@@ -40,3 +41,11 @@ export interface ChangeHistoryEntry {
 
 export type FilterTab = 'all' | 'unseen' | 'flagged' | 'normal'
 export type ViewMode = 'grid' | 'table'
+
+export interface SymbolSearchResult {
+  symbol: string
+  name: string
+  exchange: string
+  country?: string | null
+  type?: string | null
+}

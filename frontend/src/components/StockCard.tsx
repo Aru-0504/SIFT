@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { WatchlistItem } from '../types'
 
 interface StockCardProps {
@@ -8,6 +9,140 @@ interface StockCardProps {
   onViewHistory: (symbol: string) => void
   isAckPending?: boolean
   isFlagPending?: boolean
+}
+
+function MiniSparkline({
+  data,
+  isPositive,
+  sig,
+}: {
+  data?: number[]
+  isPositive: boolean
+  sig: string
+}) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
+  if (!data || data.length < 2) {
+    return null
+  }
+
+  const width = 300
+  const height = 46
+  const padTop = 6
+  const padBottom = 6
+  const effectiveHeight = height - padTop - padBottom
+
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min === 0 ? min * 0.01 || 1 : max - min
+
+  // Map to SVG coordinates
+  const points = data.map((val, idx) => {
+    const x = (idx / (data.length - 1)) * width
+    const y = padTop + effectiveHeight - ((val - min) / range) * effectiveHeight
+    return { x, y, val }
+  })
+
+  // Generate SVG path
+  const linePath = points.reduce((acc, pt, i) => {
+    if (i === 0) return `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`
+    // Smooth curve using control points
+    const prev = points[i - 1]
+    const cx = (prev.x + pt.x) / 2
+    return `${acc} C ${cx.toFixed(1)} ${prev.y.toFixed(1)}, ${cx.toFixed(1)} ${pt.y.toFixed(1)}, ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`
+  }, '')
+
+  const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`
+
+  // Palette selection
+  const strokeColor =
+    sig === 'high'
+      ? '#b91c1c'
+      : sig === 'notable'
+      ? '#b45309'
+      : isPositive
+      ? '#1e3f20'
+      : '#c2410c'
+
+  const gradientId = `sparkline-grad-${Math.random().toString(36).substring(2, 9)}`
+  const lastPoint = points[points.length - 1]
+  const hoveredPoint = hoveredIdx !== null ? points[hoveredIdx] : null
+
+  return (
+    <div className="relative mb-3.5 pt-1 group">
+      <div className="flex items-center justify-between text-[10px] font-metric text-slate-500 mb-1 px-1">
+        <span className="font-medium tracking-tight">
+          7D Trend {hoveredPoint ? `• ₹${hoveredPoint.val.toFixed(2)}` : ''}
+        </span>
+        <span className="opacity-70">
+          Range: ₹{min.toFixed(0)} – ₹{max.toFixed(0)}
+        </span>
+      </div>
+
+      <div className="relative h-[46px] w-full overflow-hidden rounded-lg bg-black/[0.02] border border-black/[0.04]">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-full overflow-visible"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.28" />
+              <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Fill under curve */}
+          <path d={areaPath} fill={`url(#${gradientId})`} />
+
+          {/* Stroke line */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Last price dot */}
+          {lastPoint && (
+            <circle
+              cx={lastPoint.x}
+              cy={lastPoint.y}
+              r="3.5"
+              fill={strokeColor}
+              className="drop-shadow-sm"
+            />
+          )}
+
+          {/* Hover highlight dot */}
+          {hoveredPoint && (
+            <circle
+              cx={hoveredPoint.x}
+              cy={hoveredPoint.y}
+              r="4.5"
+              fill="#ffffff"
+              stroke={strokeColor}
+              strokeWidth="2"
+            />
+          )}
+        </svg>
+
+        {/* Hover slice detector bars */}
+        <div className="absolute inset-0 flex">
+          {points.map((_, i) => (
+            <div
+              key={i}
+              className="flex-1 h-full cursor-crosshair"
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function StockCard({
@@ -157,6 +292,9 @@ export function StockCard({
             </div>
           </div>
         </div>
+
+        {/* Mini Sparkline 7D Trend */}
+        <MiniSparkline data={item.sparkline} isPositive={isPositive} sig={sig} />
 
         {/* Volatility Threshold Gauge */}
         <div

@@ -46,3 +46,8 @@ class MarketDataProvider(ABC):
     @abstractmethod
     def validate_symbol(self, symbol: str) -> bool:
         ...
+
+    @abstractmethod
+    def search_symbols(self, query: str) -> list[dict]:
+        """Search for matching ticker symbols and company names."""
+        ...

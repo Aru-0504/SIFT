@@ -73,5 +73,93 @@ class TwelveDataProvider(MarketDataProvider):
             # live feed should surface as unavailable rather than invalid.
             return False
 
+    def search_symbols(self, query: str) -> list[dict]:
+        clean_q = query.strip()
+        if not clean_q:
+            return []
+
+        results: list[dict] = []
+        seen_symbols = set()
+
+        # 1. Try Twelve Data symbol search if API key exists
+        if settings.market_data_api_key:
+            try:
+                response = self._client.get(
+                    f"{self.BASE_URL}/symbol_search",
+                    params={"symbol": clean_q, "outputsize": 10, "apikey": settings.market_data_api_key},
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    for item in data.get("data", []):
+                        sym = item.get("symbol", "").upper()
+                        if sym and sym not in seen_symbols:
+                            seen_symbols.add(sym)
+                            results.append({
+                                "symbol": sym,
+                                "name": item.get("instrument_name") or sym,
+                                "exchange": item.get("exchange") or "UNKNOWN",
+                                "country": item.get("country"),
+                                "type": item.get("instrument_type") or item.get("type"),
+                            })
+            except Exception:
+                pass
+
+        # 2. Try Yahoo Finance public search if few/no results
+        if len(results) < 5:
+            try:
+                yf_resp = self._client.get(
+                    "https://query2.finance.yahoo.com/v1/finance/search",
+                    params={"q": clean_q, "quotesCount": 8, "newsCount": 0},
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+                )
+                if yf_resp.status_code == 200:
+                    yf_data = yf_resp.json()
+                    for quote in yf_data.get("quotes", []):
+                        sym = quote.get("symbol", "").upper()
+                        if sym and sym not in seen_symbols:
+                            seen_symbols.add(sym)
+                            results.append({
+                                "symbol": sym,
+                                "name": quote.get("shortname") or quote.get("longname") or sym,
+                                "exchange": quote.get("exchange") or quote.get("exchDisp") or "MARKET",
+                                "country": quote.get("region"),
+                                "type": quote.get("quoteType"),
+                            })
+            except Exception:
+                pass
+
+        # 3. Built-in curated popular catalog fallback matching query
+        catalog = [
+            {"symbol": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "MSFT", "name": "Microsoft Corporation", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "NVDA", "name": "NVIDIA Corporation", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "GOOGL", "name": "Alphabet Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "AMZN", "name": "Amazon.com Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "TSLA", "name": "Tesla Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "META", "name": "Meta Platforms Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "NFLX", "name": "Netflix Inc.", "exchange": "NASDAQ", "country": "United States", "type": "Common Stock"},
+            {"symbol": "RELIANCE.NS", "name": "Reliance Industries Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "TCS.NS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "HDFCBANK.NS", "name": "HDFC Bank Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "INFY.NS", "name": "Infosys Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "ICICIBANK.NS", "name": "ICICI Bank Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "TATAMOTORS.NS", "name": "Tata Motors Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "SBIN.NS", "name": "State Bank of India", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "ITC.NS", "name": "ITC Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "BHARTIARTL.NS", "name": "Bharti Airtel Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "LT.NS", "name": "Larsen & Toubro Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "WIPRO.NS", "name": "Wipro Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "SPY", "name": "SPDR S&P 500 ETF Trust", "exchange": "NYSE", "country": "United States", "type": "ETF"},
+            {"symbol": "QQQ", "name": "Invesco QQQ Trust", "exchange": "NASDAQ", "country": "United States", "type": "ETF"},
+        ]
+
+        q_lower = clean_q.lower()
+        for item in catalog:
+            if (q_lower in item["symbol"].lower() or q_lower in item["name"].lower()) and item["symbol"] not in seen_symbols:
+                seen_symbols.add(item["symbol"])
+                results.append(item)
+
+        return results[:10]
+
     def close(self):
         self._client.close()

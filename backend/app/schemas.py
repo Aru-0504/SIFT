@@ -36,6 +36,7 @@ class WatchlistItemResponse(BaseModel):
     is_flagged: bool = False
     has_unseen_change: bool = False
     change_since_last_seen: Optional[ChangeInfo] = None
+    sparkline: Optional[list[float]] = None
 
 
 class WatchlistResponse(BaseModel):
@@ -58,3 +59,11 @@ class ChangeHistoryEntry(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class SymbolSearchResult(BaseModel):
+    symbol: str
+    name: str
+    exchange: str
+    country: Optional[str] = None
+    type: Optional[str] = None

@@ -122,3 +122,6 @@ class CachedFallbackProvider(MarketDataProvider):
 
     def validate_symbol(self, symbol: str) -> bool:
         return self._live.validate_symbol(symbol)
+
+    def search_symbols(self, query: str) -> list[dict]:
+        return self._live.search_symbols(query)

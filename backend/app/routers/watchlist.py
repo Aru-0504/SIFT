@@ -5,12 +5,19 @@ from app.database import get_db
 from app.auth import get_current_user_id
 from app.models import WatchlistFlag
 from app.schemas import (
-    AddSymbolRequest, WatchlistResponse, AckRequest, ChangeHistoryEntry,
+    AddSymbolRequest, WatchlistResponse, AckRequest, ChangeHistoryEntry, SymbolSearchResult,
 )
 from app.services import watchlist_service
 from app.market_data.base import InvalidSymbolError
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+
+
+@router.get("/search", response_model=list[SymbolSearchResult])
+def search_symbols(q: str = "", user_id: str = Depends(get_current_user_id)):
+    if not q or len(q.strip()) < 1:
+        return []
+    return watchlist_service.search_symbols(q.strip())
 
 
 @router.post("/items", status_code=status.HTTP_201_CREATED)
