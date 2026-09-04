@@ -54,13 +54,13 @@ routers/watchlist.py      → HTTP layer, request/response only
 services/watchlist_service.py → checkpoint diffing, orchestration
 services/significance.py  → "meaningful change" calculation
 market_data/base.py       → MarketDataProvider interface (Quote, exceptions)
-market_data/yfinance_provider.py → real data via yfinance
+market_data/twelve_data_provider.py → live data via Twelve Data
 market_data/cache.py      → shared TTL cache + last-known-good fallback
 models.py / schemas.py    → SQLAlchemy models / Pydantic contracts
 ```
 
 The service layer only depends on `MarketDataProvider` (the interface), never
-on `YFinanceProvider` directly — swapping data sources means writing one new
+on `TwelveDataProvider` directly — swapping data sources means writing one new
 class, not touching business logic.
 
 ## Key design decisions
