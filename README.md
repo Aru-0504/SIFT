@@ -51,14 +51,13 @@ delayed or unavailable.
         PostgreSQL (Supabase)         MarketDataProvider (interface)
         - watchlist_items                    │
         - user_checkpoints            ┌──────┴──────┐
-        - detected_changes      YFinanceProvider  CachedFallbackProvider
-                                  (real data)      (shared TTL cache +
+        - detected_changes      TwelveDataProvider CachedFallbackProvider
+                (live data)      (shared TTL cache +
                                                     last-known-good fallback)
 
-        Supabase Auth issues the access token the frontend attaches to
-        every request; the backend never calls Supabase to verify it —
-        it checks the signature locally, so auth adds no per-request
-        latency or extra failure point.
+        The backend issues the access token the frontend attaches to every
+        request and verifies it locally, so auth adds no per-request network
+        dependency.
 ```
 
 ### Why this shape

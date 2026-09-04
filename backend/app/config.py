@@ -22,16 +22,11 @@ class Settings(BaseSettings):
         default="development",
         validation_alias=AliasChoices("APP_ENV", "app_env"),
     )
-    market_data_mode: str = Field(
-        default="live",
-        validation_alias=AliasChoices("MARKET_DATA_MODE", "market_data_mode"),
-    )
     market_data_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("MARKET_DATA_API_KEY", "market_data_api_key"),
     )
     quote_cache_ttl_seconds: int = 45
-    demo_seed_symbols: str = "RELIANCE.NS,TCS.NS,HDFCBANK.NS,AAPL,NVDA"
     cors_origins: str = Field(
         default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174",
         validation_alias=AliasChoices("CORS_ORIGINS", "cors_origins"),
@@ -46,7 +41,6 @@ class Settings(BaseSettings):
         self.database_url = self.database_url.strip() or "sqlite:///./sift_dev.db"
         self.jwt_secret = self.jwt_secret.strip() or "change-me"
         self.app_env = self.app_env.strip() or "development"
-        self.market_data_mode = self.market_data_mode.strip().lower() or "live"
         if self.market_data_api_key is not None:
             self.market_data_api_key = self.market_data_api_key.strip() or None
         self.cors_origins = self.cors_origins.strip() or "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174"

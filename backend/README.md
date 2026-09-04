@@ -9,7 +9,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env          # fill in DATABASE_URL and SUPABASE_JWT_SECRET
+cp .env.example .env          # PowerShell: Copy-Item .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -17,33 +17,29 @@ Set `APP_ENV=production` and `CORS_ORIGINS` to the deployed frontend origin
 before deployment. Keep `DATABASE_URL` empty for local SQLite development; for
 production, use the current Supabase connection string from the dashboard.
 
+Set `MARKET_DATA_API_KEY` to your Twelve Data key. SIFT uses Twelve Data for
+live quotes and daily history, with the cache serving the last known quote if
+the provider is temporarily unavailable.
+
 Run the backend contract tests from the `backend` directory:
 
 ```bash
 pytest
 ```
 
-Local dev without Supabase Postgres: leave `DATABASE_URL` empty or unset in
-`.env` and it falls back to a local `sift_dev.db` SQLite file automatically —
-useful for testing the watchlist/significance logic before wiring up Postgres. Auth
-still requires a real Supabase project either way, since token verification
-needs the project's actual JWT secret.
+Local development can use SQLite by leaving `DATABASE_URL` empty. The deployed
+configuration uses the Neon PostgreSQL connection string and the JWT secret
+from the backend environment.
 
-For Supabase Postgres, copy the current connection string from the project's
-Database settings. Do not reuse a stale `db.<project-ref>.supabase.co` host if
-DNS does not resolve it; Supabase may provide a pooler hostname instead. URL-
-encode special characters in the database password before placing the URL in
-`.env`.
+For Neon PostgreSQL, copy the pooled connection string from the Neon dashboard
+and URL-encode special characters in the database password before placing it
+in `.env`.
 
 ## Authentication
 
-Every `/watchlist/*` endpoint requires a valid Supabase-issued access token
-as a Bearer token (`Authorization: Bearer <token>`). The backend verifies
-the token's signature locally using `SUPABASE_JWT_SECRET` (Project Settings
-> API > JWT Secret) — no network call to Supabase is made per-request, so
-auth verification doesn't add latency or an extra point of failure. The
-user's id is taken from the token's `sub` claim, so it lines up exactly with
-`auth.users.id` in Supabase.
+Every `/watchlist/*` endpoint requires a valid JWT as a Bearer token
+(`Authorization: Bearer <token>`). The backend issues tokens at signup/signin
+and verifies them locally using `JWT_SECRET`.
 
 API docs (auto-generated): `http://localhost:8000/docs`
 

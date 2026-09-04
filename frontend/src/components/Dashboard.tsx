@@ -29,8 +29,6 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
 
   const unseenCount = data?.unseen_change_count ?? 0
   const items = data?.items ?? []
-  const dataSource = items.find((item) => item.source)?.source
-  const dataLabel = dataSource === 'demo' ? 'Demo data' : dataSource === 'twelve_data' ? 'Live data' : 'Data status'
   
   // Separate items by significance
   const significantItems = items.filter(item => item.change_since_last_seen?.significance !== 'normal')
@@ -82,9 +80,9 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs" style={{ backgroundColor: dataSource === 'demo' ? 'rgba(176, 123, 62, 0.12)' : 'rgba(110, 117, 88, 0.12)', color: dataSource === 'demo' ? 'var(--color-warning)' : 'var(--color-positive)' }}>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs" style={{ backgroundColor: 'rgba(110, 117, 88, 0.12)', color: 'var(--color-positive)' }}>
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-positive)' }}></span>
-              {dataLabel}
+              Live data
             </div>
             <button onClick={onSignOut} className="btn btn-ghost text-sm">
               Sign out
@@ -346,7 +344,7 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
             {/* Data freshness indicator */}
             {items.length > 0 && (
               <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {items[0].source === 'demo' ? 'Demo data refreshed' : 'Data updated'} {getTimeAgo(items[0].fetched_at)}
+                Data updated {getTimeAgo(items[0].fetched_at)}
               </div>
             )}
           </section>
