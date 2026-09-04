@@ -1,0 +1,11 @@
+backend/.env
+backend/*.db
+frontend/.env
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.venv312/
+*.tsbuildinfo
