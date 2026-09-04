@@ -17,10 +17,10 @@ class DemoMarketDataProvider(MarketDataProvider):
 
     def get_quote(self, symbol: str) -> Quote:
         base_price, previous_close = self.QUOTES[symbol]
-        # A small deterministic oscillation makes demo polling visibly live
-        # without pretending these values come from an exchange.
+        # A deterministic oscillation makes demo polling visibly live and
+        # produces a reviewable movement on the next 45-second poll.
         phase = datetime.utcnow().timestamp() / 45
-        price = base_price * (1 + 0.004 * math.sin(phase))
+        price = base_price * (1 + 0.02 * math.sin(phase))
         return Quote(
             symbol=symbol,
             price=price,
