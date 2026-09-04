@@ -37,6 +37,14 @@ class WatchlistItem(Base):
     )
 
 
+class WatchlistFlag(Base):
+    __tablename__ = "watchlist_flags"
+
+    user_id = Column(String, primary_key=True)
+    symbol = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class UserCheckpoint(Base):
     __tablename__ = "user_checkpoints"
 

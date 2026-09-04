@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import httpx
 
 from app.config import settings
@@ -7,10 +6,16 @@ from app.market_data.base import MarketDataProvider, Quote, ProviderUnavailableE
 
 
 class TwelveDataProvider(MarketDataProvider):
-    """Market quotes and daily history from Twelve Data."""
+    """Market quotes and daily history from Twelve Data with pooled HTTP connections."""
 
     BASE_URL = "https://api.twelvedata.com"
     SOURCE_NAME = "twelve_data"
+
+    def __init__(self, client: httpx.Client | None = None):
+        self._client = client or httpx.Client(
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            timeout=10.0,
+        )
 
     def _provider_symbol(self, symbol: str) -> str:
         return f"{symbol[:-3]}:NSE" if symbol.endswith(".NS") else symbol
@@ -19,16 +24,16 @@ class TwelveDataProvider(MarketDataProvider):
         if not settings.market_data_api_key:
             raise ProviderUnavailableError("Twelve Data API key is not configured")
         try:
-            response = httpx.get(
+            response = self._client.get(
                 f"{self.BASE_URL}/{endpoint}",
                 params={"symbol": self._provider_symbol(symbol), "apikey": settings.market_data_api_key, **params},
-                timeout=10,
             )
             response.raise_for_status()
             data = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise ProviderUnavailableError(f"Twelve Data request failed for {symbol}: {exc}") from exc
-        if data.get("status") == "error" or "code" in data and "values" not in data:
+
+        if data.get("status") == "error" or ("code" in data and "values" not in data):
             message = data.get("message", f"No data returned for {symbol}")
             if data.get("code") in {400, 401, 403, 404}:
                 raise ProviderUnavailableError(f"Twelve Data rejected {symbol}: {message}")
@@ -67,3 +72,6 @@ class TwelveDataProvider(MarketDataProvider):
             # Validation and quote retrieval share one provider call. A failed
             # live feed should surface as unavailable rather than invalid.
             return False
+
+    def close(self):
+        self._client.close()

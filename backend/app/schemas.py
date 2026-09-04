@@ -31,6 +31,10 @@ class WatchlistItemResponse(BaseModel):
     stale_reason: Optional[str] = None
     source: str
     fetched_at: datetime
+    last_reviewed_at: Optional[datetime] = None
+    last_reviewed_price: Optional[float] = None
+    is_flagged: bool = False
+    has_unseen_change: bool = False
     change_since_last_seen: Optional[ChangeInfo] = None
 
 

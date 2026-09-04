@@ -48,3 +48,11 @@ CREATE TABLE IF NOT EXISTS detected_changes (
 
 -- Create index for querying unseen changes efficiently
 CREATE INDEX IF NOT EXISTS idx_changes_user_status ON detected_changes(user_id, status);
+
+-- User flags: stocks the user wants to keep visible for later
+CREATE TABLE IF NOT EXISTS watchlist_flags (
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY(user_id, symbol)
+);

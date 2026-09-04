@@ -35,6 +35,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SUPABASE_JWT_SECRET", "supabase_jwt_secret"),
     )
+    redis_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REDIS_URL", "redis_url"),
+    )
 
     @model_validator(mode="after")
     def normalize_blank_values(self):
@@ -46,6 +50,8 @@ class Settings(BaseSettings):
         self.cors_origins = self.cors_origins.strip() or "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174"
         if self.supabase_jwt_secret is not None:
             self.supabase_jwt_secret = self.supabase_jwt_secret.strip() or None
+        if self.redis_url is not None:
+            self.redis_url = self.redis_url.strip() or None
         return self
 
 

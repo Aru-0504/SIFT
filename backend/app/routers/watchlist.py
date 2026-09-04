@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.auth import get_current_user_id
+from app.models import WatchlistFlag
 from app.schemas import (
     AddSymbolRequest, WatchlistResponse, AckRequest, ChangeHistoryEntry,
 )
@@ -40,6 +41,21 @@ def acknowledge_changes(payload: AckRequest, db: Session = Depends(get_db),
                          user_id: str = Depends(get_current_user_id)):
     watchlist_service.acknowledge(db, user_id, payload.symbols)
     return {"status": "acknowledged"}
+
+
+@router.post("/items/{symbol}/flag")
+def toggle_flag(symbol: str, db: Session = Depends(get_db),
+                user_id: str = Depends(get_current_user_id)):
+    normalized_symbol = symbol.upper()
+    flag = db.query(WatchlistFlag).filter_by(user_id=user_id, symbol=normalized_symbol).first()
+    if flag:
+        db.delete(flag)
+        status_value = "unflagged"
+    else:
+        db.add(WatchlistFlag(user_id=user_id, symbol=normalized_symbol))
+        status_value = "flagged"
+    db.commit()
+    return {"status": status_value, "symbol": normalized_symbol}
 
 
 @router.get("/items/{symbol}/history", response_model=list[ChangeHistoryEntry])

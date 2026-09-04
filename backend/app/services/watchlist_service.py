@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.models import WatchlistItem, UserCheckpoint, DetectedChange
+from app.models import WatchlistItem, UserCheckpoint, DetectedChange, WatchlistFlag
 from app.market_data import market_data_provider
 from app.market_data.base import ProviderUnavailableError, InvalidSymbolError
 from app.services.significance import compute_significance
@@ -36,6 +36,8 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
 
     for item in items:
         symbol = item.symbol
+        checkpoint = db.query(UserCheckpoint).filter_by(user_id=user_id, symbol=symbol).first()
+        flag = db.query(WatchlistFlag).filter_by(user_id=user_id, symbol=symbol).first()
         try:
             quote = market_data_provider.get_quote(symbol)
         except ProviderUnavailableError:
@@ -49,12 +51,16 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
                 stale_reason="provider_unavailable_no_cache",
                 source="unavailable",
                 fetched_at=datetime.utcnow(),
+                last_reviewed_at=checkpoint.last_seen_at if checkpoint else None,
+                last_reviewed_price=float(checkpoint.last_seen_price) if checkpoint else None,
+                is_flagged=flag is not None,
+                has_unseen_change=False,
                 change_since_last_seen=None,
             ))
             continue
 
-        checkpoint = db.query(UserCheckpoint).filter_by(user_id=user_id, symbol=symbol).first()
         change_info = None
+        unseen_change = None
 
         if checkpoint is not None:
             unseen_change = db.query(DetectedChange).filter_by(
@@ -90,12 +96,13 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
         else:
             # First time this user has ever seen this symbol — establish
             # a checkpoint now so future visits have something to diff against.
-            db.add(UserCheckpoint(
+            checkpoint = UserCheckpoint(
                 user_id=user_id,
                 symbol=symbol,
                 last_seen_price=quote.price,
                 last_seen_at=datetime.utcnow(),
-            ))
+            )
+            db.add(checkpoint)
             db.commit()
 
         responses.append(WatchlistItemResponse(
@@ -106,6 +113,10 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
             stale_reason=quote.stale_reason,
             source=quote.source,
             fetched_at=quote.fetched_at,
+            last_reviewed_at=checkpoint.last_seen_at if checkpoint else None,
+            last_reviewed_price=float(checkpoint.last_seen_price) if checkpoint else None,
+            is_flagged=flag is not None,
+            has_unseen_change=unseen_change is not None if checkpoint is not None else False,
             change_since_last_seen=change_info,
         ))
 

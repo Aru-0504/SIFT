@@ -1,4 +1,4 @@
-import { WatchlistResponse } from './types'
+import { WatchlistResponse, ChangeHistoryEntry } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -43,7 +43,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ symbol }),
-    }).then((r) => handle(r))
+    }).then((r) => handle<{ symbol: string; status: string }>(r))
   },
 
   removeSymbol: async (symbol: string) => {
@@ -51,7 +51,7 @@ export const api = {
     return fetch(`${BASE_URL}/watchlist/items/${encodeURIComponent(symbol)}`, {
       method: 'DELETE',
       headers,
-    }).then((r) => handle(r))
+    }).then((r) => handle<void>(r))
   },
 
   acknowledge: async (symbols?: string[]) => {
@@ -60,6 +60,21 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ symbols: symbols ?? null }),
-    }).then((r) => handle(r))
+    }).then((r) => handle<{ status: string }>(r))
+  },
+
+  toggleFlag: async (symbol: string) => {
+    const headers = await authHeaders()
+    return fetch(`${BASE_URL}/watchlist/items/${encodeURIComponent(symbol)}/flag`, {
+      method: 'POST',
+      headers,
+    }).then((r) => handle<{ status: string; symbol: string }>(r))
+  },
+
+  getHistory: async (symbol: string) => {
+    const headers = await authHeaders()
+    return fetch(`${BASE_URL}/watchlist/items/${encodeURIComponent(symbol)}/history`, {
+      headers,
+    }).then((r) => handle<ChangeHistoryEntry[]>(r))
   },
 }
