@@ -57,6 +57,9 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
         change_info = None
 
         if checkpoint is not None:
+            unseen_change = db.query(DetectedChange).filter_by(
+                user_id=user_id, symbol=symbol, status="unseen"
+            ).first()
             history = []
             try:
                 history = market_data_provider.get_recent_history(symbol, days=10)
@@ -70,8 +73,13 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
             )
 
             if result["is_significant"]:
-                unseen_count += 1
                 _record_change(db, user_id, symbol, float(checkpoint.last_seen_price), quote.price, result)
+                unseen_change = db.query(DetectedChange).filter_by(
+                    user_id=user_id, symbol=symbol, status="unseen"
+                ).first()
+
+            if unseen_change is not None:
+                unseen_count += 1
 
             change_info = ChangeInfo(
                 pct_change=result["pct_change"],
