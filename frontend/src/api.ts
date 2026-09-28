@@ -1,6 +1,9 @@
 import { WatchlistResponse, ChangeHistoryEntry, SymbolSearchResult } from './types'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : '')
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = localStorage.getItem('access_token')
@@ -8,6 +11,10 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function handle<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    // Token expired or invalid - trigger auth error handling
+    throw new Error('AUTH_ERROR')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || `Request failed: ${res.status}`)

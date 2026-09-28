@@ -96,4 +96,56 @@ SIFT/
 2. `cd frontend && npm install && npm run dev`
 3. Open `http://localhost:5173`
 
-See each subfolder's README for environment variables and deployment notes.
+See each subfolder's README for environment variables.
+
+---
+
+## Deployment Guide
+
+SIFT supports both full-stack single-service deployment and decoupled two-tier deployment (e.g. Vercel + Render).
+
+### Option 1: Render Full-Stack (Recommended — 1 Click / Blueprint)
+
+Deploy both the backend and pre-built frontend together as a single service with PostgreSQL:
+
+1. Push your repository to GitHub.
+2. In the [Render Dashboard](https://dashboard.render.com/), click **New +** > **Blueprint**.
+3. Connect your repository. Render automatically reads [render.yaml](file:///render.yaml) to provision:
+   - A PostgreSQL database (`sift-postgres`)
+   - A Dockerized web service (`sift-app`) building Vite frontend + FastAPI backend
+4. (Optional) Provide your `MARKET_DATA_API_KEY` (Twelve Data) in Render environment variables. If left empty, SIFT automatically falls back to Yahoo Finance data feeds.
+
+---
+
+### Option 2: Decoupled (Vercel Frontend + Render/Railway Backend)
+
+#### A. Backend on Render or Railway
+1. **New Web Service** pointing to the `backend/` folder (or repository root).
+2. Set Environment Variables:
+   - `APP_ENV`: `production`
+   - `DATABASE_URL`: Your PostgreSQL connection string (Neon, Supabase, or Render Postgres). *Note: `postgres://` or `postgresql://` are both accepted.*
+   - `JWT_SECRET`: Random 32+ character string (e.g. `openssl rand -hex 32`).
+   - `CORS_ORIGINS`: Your Vercel frontend URL (e.g. `https://sift.vercel.app`), or `*`.
+   - `MARKET_DATA_API_KEY`: Your Twelve Data API key.
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+#### B. Frontend on Vercel
+1. Import repository in [Vercel](https://vercel.com).
+2. Set **Root Directory** to `frontend`.
+3. Add Environment Variable:
+   - `VITE_API_URL`: Your deployed backend URL (e.g. `https://sift-api.onrender.com`).
+4. Click **Deploy**. SPA rewrites are already configured in [frontend/vercel.json](file:///frontend/vercel.json).
+
+---
+
+### Option 3: Docker & Docker Compose (Self-Hosted / VPS)
+
+Run the full stack with PostgreSQL locally or on any VPS:
+
+```bash
+docker compose up -d --build
+```
+
+Access the app at `http://localhost:8000`. Health check endpoint available at `http://localhost:8000/health`.
+

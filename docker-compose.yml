@@ -1,0 +1,38 @@
+services:
+  sift:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=postgresql://sift_user:sift_password@postgres:5432/sift_db
+      - JWT_SECRET=production_jwt_secret_change_in_production
+      - MARKET_DATA_API_KEY=${MARKET_DATA_API_KEY:-}
+      - CORS_ORIGINS=*
+      - QUOTE_CACHE_TTL_SECONDS=45
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=sift_user
+      - POSTGRES_PASSWORD=sift_password
+      - POSTGRES_DB=sift_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sift_user -d sift_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

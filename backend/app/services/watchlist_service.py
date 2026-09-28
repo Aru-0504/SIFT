@@ -36,6 +36,9 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
 
     for item in items:
         symbol = item.symbol
+        # Initialize variables to prevent UnboundLocalError for first-time symbols
+        unseen_change = None
+        change_info = None
         checkpoint = db.query(UserCheckpoint).filter_by(user_id=user_id, symbol=symbol).first()
         flag = db.query(WatchlistFlag).filter_by(user_id=user_id, symbol=symbol).first()
         try:

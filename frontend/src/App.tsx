@@ -19,6 +19,13 @@ export default function App() {
     setIsAuthenticated(false)
   }
 
+  const handleAuthError = () => {
+    // Called when API returns 401 (expired/invalid token)
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('user_id')
+    setIsAuthenticated(false)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -29,7 +36,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {isAuthenticated ? <Dashboard onSignOut={handleSignOut} /> : <Auth />}
+      {isAuthenticated ? <Dashboard onSignOut={handleSignOut} onAuthError={handleAuthError} /> : <Auth />}
     </div>
   )
 }

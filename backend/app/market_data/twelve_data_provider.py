@@ -40,37 +40,102 @@ class TwelveDataProvider(MarketDataProvider):
             raise ProviderUnavailableError(f"Twelve Data unavailable for {symbol}: {message}")
         return data
 
-    def get_quote(self, symbol: str) -> Quote:
-        data = self._request("quote", symbol)
+    def _fetch_yahoo_chart(self, symbol: str) -> dict:
+        clean_sym = symbol.strip().upper()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{clean_sym}"
         try:
-            price = float(data["close"])
-            previous_close = float(data["previous_close"])
-            fetched_at = datetime.utcnow()
+            resp = self._client.get(
+                url,
+                params={"interval": "1d", "range": "1mo"},
+                headers=headers,
+                timeout=8.0,
+            )
+            if resp.status_code != 200:
+                raise ProviderUnavailableError(f"Yahoo Finance returned status {resp.status_code} for {clean_sym}")
+            data = resp.json()
+            result = data.get("chart", {}).get("result")
+            if not result or not isinstance(result, list) or len(result) == 0:
+                raise ProviderUnavailableError(f"No chart data found for {clean_sym}")
+            return result[0]
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderUnavailableError(f"Yahoo Finance request failed for {clean_sym}: {exc}") from exc
+
+    def get_quote(self, symbol: str) -> Quote:
+        # Try Twelve Data first if API key is provided
+        if settings.market_data_api_key:
+            try:
+                data = self._request("quote", symbol)
+                price = float(data["close"])
+                previous_close = float(data["previous_close"])
+                fetched_at = datetime.utcnow()
+                return Quote(
+                    symbol=symbol,
+                    price=price,
+                    previous_close=previous_close,
+                    volume=int(float(data.get("volume") or 0)),
+                    fetched_at=fetched_at,
+                    source=self.SOURCE_NAME,
+                )
+            except ProviderUnavailableError:
+                pass
+
+        # Fallback to Yahoo Finance (supports US + NSE .NS tickers, free and resilient)
+        try:
+            chart = self._fetch_yahoo_chart(symbol)
+            meta = chart.get("meta", {})
+            indicators = chart.get("indicators", {}).get("quote", [{}])[0]
+            raw_closes = [c for c in indicators.get("close", []) if c is not None]
+
+            price = float(meta.get("regularMarketPrice") or (raw_closes[-1] if raw_closes else 0.0))
+            prev_close = float(
+                meta.get("chartPreviousClose")
+                or meta.get("previousClose")
+                or (raw_closes[-2] if len(raw_closes) > 1 else price)
+            )
+            volume = int(meta.get("regularMarketVolume") or 0)
+
+            if price <= 0:
+                raise ProviderUnavailableError(f"Invalid price data for {symbol}")
+
             return Quote(
                 symbol=symbol,
-                price=price,
-                previous_close=previous_close,
-                volume=int(float(data.get("volume") or 0)),
-                fetched_at=fetched_at,
-                source=self.SOURCE_NAME,
+                price=round(price, 2),
+                previous_close=round(prev_close, 2),
+                volume=volume,
+                fetched_at=datetime.utcnow(),
+                source="yahoo_finance",
             )
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ProviderUnavailableError(f"Incomplete Twelve Data quote for {symbol}") from exc
+        except Exception as exc:
+            raise ProviderUnavailableError(f"Market quote unavailable for {symbol}: {exc}") from exc
 
     def get_recent_history(self, symbol: str, days: int = 10) -> list[float]:
-        data = self._request("time_series", symbol, interval="1day", outputsize=days)
+        # Try Twelve Data first if API key is provided
+        if settings.market_data_api_key:
+            try:
+                data = self._request("time_series", symbol, interval="1day", outputsize=days)
+                return [float(value["close"]) for value in reversed(data["values"])]
+            except ProviderUnavailableError:
+                pass
+
+        # Fallback to Yahoo Finance
         try:
-            return [float(value["close"]) for value in reversed(data["values"])]
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ProviderUnavailableError(f"Incomplete Twelve Data history for {symbol}") from exc
+            chart = self._fetch_yahoo_chart(symbol)
+            indicators = chart.get("indicators", {}).get("quote", [{}])[0]
+            raw_closes = [float(c) for c in indicators.get("close", []) if c is not None]
+            if not raw_closes:
+                raise ProviderUnavailableError(f"No historical closes found for {symbol}")
+            return [round(c, 2) for c in raw_closes[-days:]]
+        except Exception as exc:
+            raise ProviderUnavailableError(f"History unavailable for {symbol}: {exc}") from exc
 
     def validate_symbol(self, symbol: str) -> bool:
         try:
             self.get_quote(symbol)
             return True
         except ProviderUnavailableError:
-            # Validation and quote retrieval share one provider call. A failed
-            # live feed should surface as unavailable rather than invalid.
             return False
 
     def search_symbols(self, query: str) -> list[dict]:

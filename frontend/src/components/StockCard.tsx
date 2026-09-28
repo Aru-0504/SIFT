@@ -15,10 +15,12 @@ function MiniSparkline({
   data,
   isPositive,
   sig,
+  currencySymbol = '$',
 }: {
   data?: number[]
   isPositive: boolean
   sig: string
+  currencySymbol?: string
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
@@ -72,10 +74,10 @@ function MiniSparkline({
     <div className="relative mb-3.5 pt-1 group">
       <div className="flex items-center justify-between text-[10px] font-metric text-slate-500 mb-1 px-1">
         <span className="font-medium tracking-tight">
-          7D Trend {hoveredPoint ? `• ₹${hoveredPoint.val.toFixed(2)}` : ''}
+          7D Trend {hoveredPoint ? `• ${currencySymbol}${hoveredPoint.val.toFixed(2)}` : ''}
         </span>
         <span className="opacity-70">
-          Range: ₹{min.toFixed(0)} – ₹{max.toFixed(0)}
+          Range: {currencySymbol}{min.toFixed(0)} – {currencySymbol}{max.toFixed(0)}
         </span>
       </div>
 
@@ -176,8 +178,14 @@ export function StockCard({
     return `${Math.floor(diffHours / 24)}d ago`
   }
 
-  const formatPrice = (price: number) =>
-    `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const isIndian = item.symbol.toUpperCase().endsWith('.NS') || item.symbol.toUpperCase().endsWith('.BO')
+  const currencySymbol = isIndian ? '₹' : '$'
+  const formatPrice = (price: number) => {
+    if (isIndian) {
+      return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   const threshold = change?.threshold_used ?? 1.0
   const ratio = pctChange !== undefined && threshold > 0 ? Math.abs(pctChange) / threshold : 0
@@ -294,7 +302,7 @@ export function StockCard({
         </div>
 
         {/* Mini Sparkline 7D Trend */}
-        <MiniSparkline data={item.sparkline} isPositive={isPositive} sig={sig} />
+        <MiniSparkline data={item.sparkline} isPositive={isPositive} sig={sig} currencySymbol={currencySymbol} />
 
         {/* Volatility Threshold Gauge */}
         <div

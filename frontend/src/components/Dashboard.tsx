@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { StockCard } from './StockCard'
@@ -6,7 +6,7 @@ import { AddStock } from './AddStock'
 import { FilterTab, ViewMode, ChangeHistoryEntry } from '../types'
 import logoUrl from '../../logo.png'
 
-export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
+export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; onAuthError: () => void }) {
   const queryClient = useQueryClient()
   const [filterTab, setFilterTab] = useState<FilterTab>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -19,6 +19,13 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     queryFn: api.getWatchlist,
     refetchInterval: 45_000,
   })
+
+  // TanStack Query v5 compliant auth error handling
+  useEffect(() => {
+    if (isError && error instanceof Error && error.message === 'AUTH_ERROR') {
+      onAuthError()
+    }
+  }, [isError, error, onAuthError])
 
   // History query when modal is active
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
@@ -70,8 +77,13 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     })
   }, [items, filterTab, searchQuery])
 
-  const formatPrice = (price: number) =>
-    `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatPrice = (price: number, symbol: string = '') => {
+    const isIndian = symbol.toUpperCase().endsWith('.NS') || symbol.toUpperCase().endsWith('.BO')
+    if (isIndian) {
+      return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   const parseBackendTimestamp = (timestamp: string) => {
     return new Date(timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`)
@@ -511,7 +523,7 @@ export function Dashboard({ onSignOut }: { onSignOut: () => void }) {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-metric font-semibold text-right" style={{ color: 'var(--color-text-primary)' }}>
-                          {formatPrice(item.price)}
+                          {formatPrice(item.price, item.symbol)}
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {pct !== undefined ? (
