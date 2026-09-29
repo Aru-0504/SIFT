@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, Numeric, DateTime, UniqueConstraint, JSON, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -21,7 +21,7 @@ class User(Base):
     id = Column(String, primary_key=True, default=gen_uuid)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class WatchlistItem(Base):
@@ -30,7 +30,7 @@ class WatchlistItem(Base):
     id = Column(String, primary_key=True, default=gen_uuid)
     user_id = Column(String, nullable=False, index=True)
     symbol = Column(String, nullable=False)
-    added_at = Column(DateTime, default=datetime.utcnow)
+    added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         UniqueConstraint("user_id", "symbol", name="uq_user_symbol"),
@@ -42,7 +42,7 @@ class WatchlistFlag(Base):
 
     user_id = Column(String, primary_key=True)
     symbol = Column(String, primary_key=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class UserCheckpoint(Base):
@@ -66,7 +66,7 @@ class DetectedChange(Base):
     significance_score = Column(Numeric, nullable=False)
     signals = Column(JSON, nullable=False, default=dict)
     status = Column(String, nullable=False, default="unseen")  # unseen | acknowledged
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("idx_changes_user_status", "user_id", "status"),

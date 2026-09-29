@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { StockCard } from './StockCard'
 import { AddStock } from './AddStock'
-import { FilterTab, ViewMode, ChangeHistoryEntry } from '../types'
+import { FilterTab, ViewMode, ChangeHistoryEntry, CurrencyDisplayMode } from '../types'
 import logoUrl from '../../logo.png'
 
 export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; onAuthError: () => void }) {
@@ -12,6 +12,24 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [historySymbol, setHistorySymbol] = useState<string | null>(null)
+
+  const [currencyMode, setCurrencyMode] = useState<CurrencyDisplayMode>(() => {
+    return (localStorage.getItem('sift_currency_mode') as CurrencyDisplayMode) || 'native'
+  })
+
+  const handleCurrencyChange = (mode: CurrencyDisplayMode) => {
+    setCurrencyMode(mode)
+    localStorage.setItem('sift_currency_mode', mode)
+  }
+
+  // Live USD/INR forex rate query
+  const { data: forexData } = useQuery({
+    queryKey: ['forex'],
+    queryFn: api.getForexRate,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+  })
+  const fxRate = forexData?.rate || 83.85
 
   // Main watchlist query with 45-second polling (matching cache TTL)
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
@@ -77,12 +95,33 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
     })
   }, [items, filterTab, searchQuery])
 
-  const formatPrice = (price: number, symbol: string = '') => {
-    const isIndian = symbol.toUpperCase().endsWith('.NS') || symbol.toUpperCase().endsWith('.BO')
-    if (isIndian) {
-      return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatPrice = (price: number, symbol: string = '', itemCurrency?: string) => {
+    const isIndian = itemCurrency === 'INR' || symbol.toUpperCase().endsWith('.NS') || symbol.toUpperCase().endsWith('.BO')
+    const rate = fxRate > 0 ? fxRate : 83.85
+
+    let val = price
+    let sym = isIndian ? '₹' : '$'
+    let hint = ''
+
+    if (currencyMode === 'INR') {
+      sym = '₹'
+      if (!isIndian) {
+        val = price * rate
+        hint = `$${price.toFixed(2)}`
+      }
+    } else if (currencyMode === 'USD') {
+      sym = '$'
+      if (isIndian) {
+        val = price / rate
+        hint = `₹${price.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+      }
     }
-    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    const formatted = sym === '₹'
+      ? `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    return { formatted, hint }
   }
 
   const parseBackendTimestamp = (timestamp: string) => {
@@ -123,10 +162,44 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
           </div>
 
           {/* Right Header Controls */}
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap justify-end">
+            {/* Currency Mode Switcher */}
+            <div
+              className="flex items-center rounded-lg p-0.5 text-xs font-semibold shadow-sm border"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
+              {(['native', 'INR', 'USD'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => handleCurrencyChange(mode)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                    currencyMode === mode
+                      ? 'shadow-xs font-semibold'
+                      : 'hover:text-black opacity-70 hover:opacity-100'
+                  }`}
+                  style={{
+                    backgroundColor: currencyMode === mode ? 'var(--color-surface-secondary)' : 'transparent',
+                    color: currencyMode === mode ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}
+                  title={
+                    mode === 'native'
+                      ? 'Original currency ($ for US, ₹ for Indian)'
+                      : mode === 'INR'
+                      ? `Convert all values to Indian Rupees (₹) @ 1 USD = ₹${fxRate.toFixed(2)}`
+                      : `Convert all values to US Dollars ($) @ ₹${fxRate.toFixed(2)} / USD`
+                  }
+                >
+                  {mode === 'native' ? '🌐 Auto' : mode === 'INR' ? '₹ INR' : '$ USD'}
+                </button>
+              ))}
+            </div>
+
             {/* Live Data Badge */}
             <div
-              className="flex items-center gap-2.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-semibold shadow-sm"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm"
               style={{
                 backgroundColor: 'rgba(85, 107, 72, 0.12)',
                 color: 'var(--color-positive)',
@@ -134,11 +207,11 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
               }}
             >
               <span
-                className={`w-2.5 h-2.5 rounded-full ${isFetching ? 'animate-ping' : ''}`}
+                className={`w-2 h-2 rounded-full ${isFetching ? 'animate-ping' : ''}`}
                 style={{ backgroundColor: 'var(--color-positive)' }}
               ></span>
-              <span className="font-medium tracking-wide">
-                {isFetching ? 'Syncing market…' : 'Live feed active'}
+              <span className="font-medium tracking-wide hidden sm:inline">
+                {isFetching ? 'Syncing market…' : 'Live Feed Active'}
               </span>
             </div>
 
@@ -146,7 +219,7 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
             <button
               onClick={() => refetch()}
               title="Refresh Watchlist Now"
-              className="p-2.5 rounded-full hover:bg-black/5 active:scale-95 transition-all"
+              className="p-2 rounded-full hover:bg-black/5 active:scale-95 transition-all"
               style={{
                 color: 'var(--color-text-primary)',
                 border: '1px solid var(--color-border)',
@@ -171,7 +244,7 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
             {/* Sign Out Button */}
             <button
               onClick={onSignOut}
-              className="btn btn-secondary text-xs px-4 py-2 font-semibold shadow-sm"
+              className="btn btn-secondary text-xs px-3.5 py-1.5 font-semibold shadow-sm"
             >
               Sign out
             </button>
@@ -477,6 +550,8 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
                 onViewHistory={(s) => setHistorySymbol(s)}
                 isAckPending={ackMutation.isPending}
                 isFlagPending={flagMutation.isPending}
+                currencyMode={currencyMode}
+                fxRate={fxRate}
               />
             ))}
           </div>
@@ -523,7 +598,12 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-metric font-semibold text-right" style={{ color: 'var(--color-text-primary)' }}>
-                          {formatPrice(item.price, item.symbol)}
+                          <div>{formatPrice(item.price, item.symbol, item.currency).formatted}</div>
+                          {formatPrice(item.price, item.symbol, item.currency).hint && (
+                            <div className="text-[10px] font-mono font-normal opacity-60">
+                              {formatPrice(item.price, item.symbol, item.currency).hint}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {pct !== undefined ? (
@@ -716,3 +796,5 @@ export function Dashboard({ onSignOut, onAuthError }: { onSignOut: () => void; o
     </div>
   )
 }
+
+

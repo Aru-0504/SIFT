@@ -1,5 +1,5 @@
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
@@ -20,11 +20,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(user_id: str) -> str:
     """Create JWT access token for our own auth system"""
-    expire = datetime.utcnow() + timedelta(days=7)
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(days=7)
     payload = {
         "sub": user_id,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": now,
         "type": "access"
     }
     return jwt.encode(payload, get_jwt_secret(), algorithm="HS256")

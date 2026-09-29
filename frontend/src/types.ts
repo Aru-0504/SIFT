@@ -12,6 +12,7 @@ export interface WatchlistItem {
   is_stale: boolean
   stale_reason: string | null
   source: string
+  currency?: string
   fetched_at: string
   last_reviewed_at: string | null
   last_reviewed_price: number | null
@@ -41,6 +42,7 @@ export interface ChangeHistoryEntry {
 
 export type FilterTab = 'all' | 'unseen' | 'flagged' | 'normal'
 export type ViewMode = 'grid' | 'table'
+export type CurrencyDisplayMode = 'native' | 'INR' | 'USD'
 
 export interface SymbolSearchResult {
   symbol: string
@@ -49,3 +51,11 @@ export interface SymbolSearchResult {
   country?: string | null
   type?: string | null
 }
+
+export interface ForexData {
+  base: string
+  quote: string
+  rate: number
+  last_updated: string
+}
+

@@ -9,6 +9,8 @@ interface StockCardProps {
   onViewHistory: (symbol: string) => void
   isAckPending?: boolean
   isFlagPending?: boolean
+  currencyMode?: 'native' | 'INR' | 'USD'
+  fxRate?: number
 }
 
 function MiniSparkline({
@@ -155,6 +157,8 @@ export function StockCard({
   onViewHistory,
   isAckPending = false,
   isFlagPending = false,
+  currencyMode = 'native',
+  fxRate = 83.85,
 }: StockCardProps) {
   const change = item.change_since_last_seen
   const sig = change?.significance ?? 'normal'
@@ -178,14 +182,45 @@ export function StockCard({
     return `${Math.floor(diffHours / 24)}d ago`
   }
 
-  const isIndian = item.symbol.toUpperCase().endsWith('.NS') || item.symbol.toUpperCase().endsWith('.BO')
-  const currencySymbol = isIndian ? '₹' : '$'
+  const isNativeIndian = item.currency === 'INR' || item.symbol.toUpperCase().endsWith('.NS') || item.symbol.toUpperCase().endsWith('.BO')
+  const rate = fxRate > 0 ? fxRate : 83.85
+
+  let effectivePrice = item.price
+  let effectivePrevClose = item.previous_close
+  let effectiveLastReviewed = item.last_reviewed_price
+  let effectiveSymbol = isNativeIndian ? '₹' : '$'
+  let dualPriceHint = ''
+
+  if (currencyMode === 'INR') {
+    effectiveSymbol = '₹'
+    if (!isNativeIndian) {
+      effectivePrice = item.price * rate
+      effectivePrevClose = item.previous_close * rate
+      if (effectiveLastReviewed != null) effectiveLastReviewed = item.last_reviewed_price! * rate
+      dualPriceHint = `$${item.price.toFixed(2)}`
+    }
+  } else if (currencyMode === 'USD') {
+    effectiveSymbol = '$'
+    if (isNativeIndian) {
+      effectivePrice = item.price / rate
+      effectivePrevClose = item.previous_close / rate
+      if (effectiveLastReviewed != null) effectiveLastReviewed = item.last_reviewed_price! / rate
+      dualPriceHint = `₹${item.price.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+    }
+  }
+
   const formatPrice = (price: number) => {
-    if (isIndian) {
+    if (effectiveSymbol === '₹') {
       return `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
     return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
+
+  const sparklineData = (currencyMode === 'INR' && !isNativeIndian)
+    ? item.sparkline?.map((v) => v * rate)
+    : (currencyMode === 'USD' && isNativeIndian)
+    ? item.sparkline?.map((v) => v / rate)
+    : item.sparkline
 
   const threshold = change?.threshold_used ?? 1.0
   const ratio = pctChange !== undefined && threshold > 0 ? Math.abs(pctChange) / threshold : 0
@@ -261,11 +296,22 @@ export function StockCard({
         {/* Live Price & Movement Delta */}
         <div className="flex items-baseline justify-between mb-4">
           <div>
-            <div className="text-3xl font-metric font-bold" style={{ color: 'var(--color-text-primary)' }}>
-              {formatPrice(item.price)}
+            <div className="flex items-baseline">
+              <span className="text-3xl font-metric font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                {formatPrice(effectivePrice)}
+              </span>
+              {dualPriceHint && (
+                <span
+                  className="ml-2 text-xs font-mono font-medium px-1.5 py-0.5 rounded shadow-sm"
+                  style={{ backgroundColor: 'rgba(92, 61, 74, 0.08)', color: 'var(--color-text-secondary)' }}
+                  title="Original price in native currency"
+                >
+                  {dualPriceHint}
+                </span>
+              )}
             </div>
             <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
-              <span>Prev close: {formatPrice(item.previous_close)}</span>
+              <span>Prev close: {formatPrice(effectivePrevClose)}</span>
               {item.is_stale && (
                 <span
                   className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
@@ -302,7 +348,7 @@ export function StockCard({
         </div>
 
         {/* Mini Sparkline 7D Trend */}
-        <MiniSparkline data={item.sparkline} isPositive={isPositive} sig={sig} currencySymbol={currencySymbol} />
+        <MiniSparkline data={sparklineData} isPositive={isPositive} sig={sig} currencySymbol={effectiveSymbol} />
 
         {/* Volatility Threshold Gauge */}
         <div
@@ -368,8 +414,8 @@ export function StockCard({
           <div>
             <span className="block text-[10px] font-meta uppercase" style={{ color: 'var(--color-text-muted)' }}>Review Price</span>
             <span className="font-metric font-medium" style={{ color: 'var(--color-text-primary)' }}>
-              {item.last_reviewed_price !== null && item.last_reviewed_price !== undefined
-                ? formatPrice(item.last_reviewed_price)
+              {effectiveLastReviewed !== null && effectiveLastReviewed !== undefined
+                ? formatPrice(effectiveLastReviewed)
                 : '—'}
             </span>
           </div>

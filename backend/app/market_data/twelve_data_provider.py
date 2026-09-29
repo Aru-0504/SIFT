@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import httpx
 
 from app.config import settings
@@ -70,7 +70,8 @@ class TwelveDataProvider(MarketDataProvider):
                 data = self._request("quote", symbol)
                 price = float(data["close"])
                 previous_close = float(data["previous_close"])
-                fetched_at = datetime.utcnow()
+                fetched_at = datetime.now(timezone.utc)
+                currency = "INR" if (symbol.endswith(".NS") or symbol.endswith(".BO")) else "USD"
                 return Quote(
                     symbol=symbol,
                     price=price,
@@ -78,6 +79,7 @@ class TwelveDataProvider(MarketDataProvider):
                     volume=int(float(data.get("volume") or 0)),
                     fetched_at=fetched_at,
                     source=self.SOURCE_NAME,
+                    currency=currency,
                 )
             except ProviderUnavailableError:
                 pass
@@ -100,13 +102,15 @@ class TwelveDataProvider(MarketDataProvider):
             if price <= 0:
                 raise ProviderUnavailableError(f"Invalid price data for {symbol}")
 
+            currency = "INR" if (symbol.endswith(".NS") or symbol.endswith(".BO")) else "USD"
             return Quote(
                 symbol=symbol,
                 price=round(price, 2),
                 previous_close=round(prev_close, 2),
                 volume=volume,
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc),
                 source="yahoo_finance",
+                currency=currency,
             )
         except Exception as exc:
             raise ProviderUnavailableError(f"Market quote unavailable for {symbol}: {exc}") from exc
@@ -169,12 +173,18 @@ class TwelveDataProvider(MarketDataProvider):
             except Exception:
                 pass
 
-        # 2. Try Yahoo Finance public search if few/no results
-        if len(results) < 5:
+        # 2. Try Yahoo Finance public search
+        queries_to_try = [clean_q]
+        if not (clean_q.endswith(".NS") or clean_q.endswith(".BO")):
+            queries_to_try.append(f"{clean_q}.NS")
+
+        for q_attempt in queries_to_try:
+            if len(results) >= 5:
+                break
             try:
                 yf_resp = self._client.get(
                     "https://query2.finance.yahoo.com/v1/finance/search",
-                    params={"q": clean_q, "quotesCount": 8, "newsCount": 0},
+                    params={"q": q_attempt, "quotesCount": 8, "newsCount": 0},
                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
                 )
                 if yf_resp.status_code == 200:
@@ -209,18 +219,28 @@ class TwelveDataProvider(MarketDataProvider):
             {"symbol": "INFY.NS", "name": "Infosys Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "ICICIBANK.NS", "name": "ICICI Bank Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "TATAMOTORS.NS", "name": "Tata Motors Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "TATASTEEL.NS", "name": "Tata Steel Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "SBIN.NS", "name": "State Bank of India", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "ITC.NS", "name": "ITC Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "BHARTIARTL.NS", "name": "Bharti Airtel Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "LT.NS", "name": "Larsen & Toubro Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "WIPRO.NS", "name": "Wipro Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "KOTAKBANK.NS", "name": "Kotak Mahindra Bank Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "HINDUNILVR.NS", "name": "Hindustan Unilever Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "BAJFINANCE.NS", "name": "Bajaj Finance Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "MARUTI.NS", "name": "Maruti Suzuki India Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "ZOMATO.NS", "name": "Zomato Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "ADANIENT.NS", "name": "Adani Enterprises Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "SUNPHARMA.NS", "name": "Sun Pharmaceutical Industries Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
+            {"symbol": "AXISBANK.NS", "name": "Axis Bank Ltd", "exchange": "NSE", "country": "India", "type": "Common Stock"},
             {"symbol": "SPY", "name": "SPDR S&P 500 ETF Trust", "exchange": "NYSE", "country": "United States", "type": "ETF"},
             {"symbol": "QQQ", "name": "Invesco QQQ Trust", "exchange": "NASDAQ", "country": "United States", "type": "ETF"},
         ]
 
         q_lower = clean_q.lower()
         for item in catalog:
-            if (q_lower in item["symbol"].lower() or q_lower in item["name"].lower()) and item["symbol"] not in seen_symbols:
+            sym_clean = item["symbol"].split(".")[0].lower()
+            if (q_lower in item["symbol"].lower() or q_lower == sym_clean or q_lower in item["name"].lower()) and item["symbol"] not in seen_symbols:
                 seen_symbols.add(item["symbol"])
                 results.append(item)
 
@@ -228,3 +248,4 @@ class TwelveDataProvider(MarketDataProvider):
 
     def close(self):
         self._client.close()
+

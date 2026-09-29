@@ -5,7 +5,7 @@ from app.database import get_db
 from app.auth import get_current_user_id
 from app.models import WatchlistFlag
 from app.schemas import (
-    AddSymbolRequest, WatchlistResponse, AckRequest, ChangeHistoryEntry, SymbolSearchResult,
+    AddSymbolRequest, WatchlistResponse, AckRequest, ChangeHistoryEntry, SymbolSearchResult, ForexResponse,
 )
 from app.services import watchlist_service
 from app.market_data.base import InvalidSymbolError
@@ -20,14 +20,20 @@ def search_symbols(q: str = "", user_id: str = Depends(get_current_user_id)):
     return watchlist_service.search_symbols(q.strip())
 
 
+@router.get("/forex", response_model=ForexResponse)
+def get_forex_rate():
+    from app.market_data.forex import get_forex_summary
+    return get_forex_summary()
+
+
 @router.post("/items", status_code=status.HTTP_201_CREATED)
 def add_item(payload: AddSymbolRequest, db: Session = Depends(get_db),
              user_id: str = Depends(get_current_user_id)):
     try:
-        watchlist_service.add_symbol(db, user_id, payload.symbol)
+        resolved_symbol = watchlist_service.add_symbol(db, user_id, payload.symbol)
     except InvalidSymbolError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    return {"symbol": payload.symbol, "status": "added"}
+    return {"symbol": resolved_symbol, "status": "added"}
 
 
 @router.delete("/items/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
@@ -71,12 +77,12 @@ def get_symbol_history(symbol: str, db: Session = Depends(get_db),
     changes = watchlist_service.get_history(db, user_id, symbol.upper())
     return [
         ChangeHistoryEntry(
-            symbol=c.symbol,
-            pct_change=float(c.pct_change),
-            significance_score=float(c.significance_score),
-            signals=c.signals,
-            status=c.status,
-            created_at=c.created_at,
+            symbol=str(getattr(c, "symbol")),
+            pct_change=float(getattr(c, "pct_change")),
+            significance_score=float(getattr(c, "significance_score")),
+            signals=getattr(c, "signals") if isinstance(getattr(c, "signals"), dict) else {},
+            status=str(getattr(c, "status")),
+            created_at=getattr(c, "created_at"),
         )
         for c in changes
     ]

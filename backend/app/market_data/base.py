@@ -22,6 +22,7 @@ class Quote:
     volume: int
     fetched_at: datetime
     source: str
+    currency: str = "USD"
     is_stale: bool = False
     stale_reason: Optional[str] = None
 

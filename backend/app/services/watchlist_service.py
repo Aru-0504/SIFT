@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -10,11 +10,20 @@ from app.services.significance import compute_significance
 from app.schemas import WatchlistItemResponse, ChangeInfo
 
 
-def add_symbol(db: Session, user_id: str, symbol: str) -> None:
-    if not market_data_provider.validate_symbol(symbol):
-        raise InvalidSymbolError(f"'{symbol}' is not a recognized symbol")
+def add_symbol(db: Session, user_id: str, symbol: str) -> str:
+    target_symbol = symbol.strip().upper()
+    if not market_data_provider.validate_symbol(target_symbol):
+        # Auto-resolve Indian symbols (e.g. RELIANCE -> RELIANCE.NS, TCS -> TCS.NS)
+        if not (target_symbol.endswith(".NS") or target_symbol.endswith(".BO")):
+            cand = f"{target_symbol}.NS"
+            if market_data_provider.validate_symbol(cand):
+                target_symbol = cand
+            else:
+                raise InvalidSymbolError(f"'{symbol}' is not a recognized symbol")
+        else:
+            raise InvalidSymbolError(f"'{symbol}' is not a recognized symbol")
 
-    item = WatchlistItem(user_id=user_id, symbol=symbol)
+    item = WatchlistItem(user_id=user_id, symbol=target_symbol)
     db.add(item)
     try:
         db.commit()
@@ -22,6 +31,7 @@ def add_symbol(db: Session, user_id: str, symbol: str) -> None:
         # Duplicate add (UNIQUE constraint) — treated as a no-op success,
         # not an error. Idempotent by design: retries/double-clicks are safe.
         db.rollback()
+    return target_symbol
 
 
 def remove_symbol(db: Session, user_id: str, symbol: str) -> None:
@@ -53,9 +63,10 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
                 is_stale=True,
                 stale_reason="provider_unavailable_no_cache",
                 source="unavailable",
-                fetched_at=datetime.utcnow(),
-                last_reviewed_at=checkpoint.last_seen_at if checkpoint else None,
-                last_reviewed_price=float(checkpoint.last_seen_price) if checkpoint else None,
+                currency="INR" if (symbol.endswith(".NS") or symbol.endswith(".BO")) else "USD",
+                fetched_at=datetime.now(timezone.utc),
+                last_reviewed_at=getattr(checkpoint, "last_seen_at", None) if checkpoint else None,
+                last_reviewed_price=float(getattr(checkpoint, "last_seen_price")) if checkpoint and getattr(checkpoint, "last_seen_price", None) is not None else None,
                 is_flagged=flag is not None,
                 has_unseen_change=False,
                 change_since_last_seen=None,
@@ -117,7 +128,7 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
                 user_id=user_id,
                 symbol=symbol,
                 last_seen_price=quote.price,
-                last_seen_at=datetime.utcnow(),
+                last_seen_at=datetime.now(timezone.utc),
             )
             db.add(checkpoint)
             db.commit()
@@ -129,9 +140,10 @@ def get_watchlist_with_changes(db: Session, user_id: str) -> tuple[list[Watchlis
             is_stale=quote.is_stale,
             stale_reason=quote.stale_reason,
             source=quote.source,
+            currency=getattr(quote, "currency", "INR" if (symbol.endswith(".NS") or symbol.endswith(".BO")) else "USD"),
             fetched_at=quote.fetched_at,
-            last_reviewed_at=checkpoint.last_seen_at if checkpoint else None,
-            last_reviewed_price=float(checkpoint.last_seen_price) if checkpoint else None,
+            last_reviewed_at=getattr(checkpoint, "last_seen_at", None) if checkpoint else None,
+            last_reviewed_price=float(getattr(checkpoint, "last_seen_price")) if checkpoint and getattr(checkpoint, "last_seen_price", None) is not None else None,
             is_flagged=flag is not None,
             has_unseen_change=unseen_change is not None if checkpoint is not None else False,
             change_since_last_seen=change_info,
@@ -188,11 +200,11 @@ def acknowledge(db: Session, user_id: str, symbols: list[str] | None) -> None:
         checkpoint = db.query(UserCheckpoint).filter_by(user_id=user_id, symbol=symbol).first()
         if checkpoint:
             checkpoint.last_seen_price = quote.price
-            checkpoint.last_seen_at = datetime.utcnow()
+            checkpoint.last_seen_at = datetime.now(timezone.utc)
         else:
             db.add(UserCheckpoint(
                 user_id=user_id, symbol=symbol,
-                last_seen_price=quote.price, last_seen_at=datetime.utcnow(),
+                last_seen_price=quote.price, last_seen_at=datetime.now(timezone.utc),
             ))
 
         db.query(DetectedChange).filter_by(

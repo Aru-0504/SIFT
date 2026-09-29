@@ -30,6 +30,7 @@ class WatchlistItemResponse(BaseModel):
     is_stale: bool
     stale_reason: Optional[str] = None
     source: str
+    currency: str = "USD"
     fetched_at: datetime
     last_reviewed_at: Optional[datetime] = None
     last_reviewed_price: Optional[float] = None
@@ -49,6 +50,8 @@ class AckRequest(BaseModel):
 
 
 class ChangeHistoryEntry(BaseModel):
+    model_config = {"from_attributes": True}
+
     symbol: str
     pct_change: float
     significance_score: float
@@ -67,3 +70,12 @@ class SymbolSearchResult(BaseModel):
     exchange: str
     country: Optional[str] = None
     type: Optional[str] = None
+
+
+class ForexResponse(BaseModel):
+    base: str = "USD"
+    quote: str = "INR"
+    rate: float
+    last_updated: str
+
+

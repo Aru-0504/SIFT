@@ -91,4 +91,15 @@ export const api = {
       headers,
     }).then((r) => handle<SymbolSearchResult[]>(r))
   },
+
+  getForexRate: async () => {
+    return fetch(`${BASE_URL}/watchlist/forex`).then((r) => handle<{
+      base: string
+      quote: string
+      rate: number
+      last_updated: string
+    }>(r))
+  },
 }
+
+

@@ -82,7 +82,7 @@ def test_unseen_change_remains_reviewable_after_move_returns_to_normal(monkeypat
                 price=price,
                 previous_close=100.0,
                 volume=0,
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc),
                 source="test",
             )
 

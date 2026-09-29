@@ -18,10 +18,12 @@ export function AddStock({ onAdd, isPending }: AddStockProps) {
   const quickPicks = [
     { label: 'AAPL', name: 'Apple Inc', symbol: 'AAPL' },
     { label: 'NVDA', name: 'Nvidia Corp', symbol: 'NVDA' },
+    { label: 'RELIANCE', name: 'Reliance Industries', symbol: 'RELIANCE.NS' },
+    { label: 'TCS', name: 'Tata Consultancy Services', symbol: 'TCS.NS' },
+    { label: 'INFY', name: 'Infosys', symbol: 'INFY.NS' },
+    { label: 'HDFCBANK', name: 'HDFC Bank', symbol: 'HDFCBANK.NS' },
     { label: 'MSFT', name: 'Microsoft Corp', symbol: 'MSFT' },
     { label: 'TSLA', name: 'Tesla Inc', symbol: 'TSLA' },
-    { label: 'AMZN', name: 'Amazon.com Inc', symbol: 'AMZN' },
-    { label: 'RELIANCE', name: 'Reliance Industries', symbol: 'RELIANCE.NS' },
   ]
 
   // Debounced search query
@@ -110,7 +112,7 @@ export function AddStock({ onAdd, isPending }: AddStockProps) {
               if (results.length > 0) setIsOpen(true)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search by name or ticker (e.g. Apple, NVDA, Reliance, TSLA)..."
+            placeholder="Search US & Indian stocks (e.g. Apple, Reliance, TCS, NVDA)..."
             aria-label="Stock search"
             className="input-field pr-20"
             disabled={isPending}
@@ -192,6 +194,17 @@ export function AddStock({ onAdd, isPending }: AddStockProps) {
 
                       {/* Exchange & Country Tag */}
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {(item.symbol.endsWith('.NS') || item.symbol.endsWith('.BO') || item.country === 'India') && (
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded font-mono"
+                            style={{
+                              backgroundColor: 'rgba(85, 107, 72, 0.15)',
+                              color: 'var(--color-positive)',
+                            }}
+                          >
+                            ₹ INR
+                          </span>
+                        )}
                         {item.exchange && (
                           <span
                             className="text-[11px] font-medium px-2 py-0.5 rounded"

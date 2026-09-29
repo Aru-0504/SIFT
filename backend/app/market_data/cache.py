@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.market_data.base import MarketDataProvider, Quote, ProviderUnavailableError
@@ -40,13 +40,16 @@ class CachedFallbackProvider(MarketDataProvider):
             raw = self._redis_client.get(f"sift:quote:{symbol}")
             if raw:
                 data = json.loads(raw)
+                raw_fetched_at = datetime.fromisoformat(data["fetched_at"])
+                fetched_at = raw_fetched_at if raw_fetched_at.tzinfo else raw_fetched_at.replace(tzinfo=timezone.utc)
                 return Quote(
                     symbol=data["symbol"],
                     price=float(data["price"]),
                     previous_close=float(data["previous_close"]),
                     volume=int(data["volume"]),
-                    fetched_at=datetime.fromisoformat(data["fetched_at"]),
+                    fetched_at=fetched_at,
                     source=data["source"],
+                    currency=data.get("currency", "INR" if data["symbol"].endswith(".NS") else "USD"),
                     is_stale=bool(data.get("is_stale", False)),
                     stale_reason=data.get("stale_reason"),
                 )
@@ -65,6 +68,7 @@ class CachedFallbackProvider(MarketDataProvider):
                 "volume": quote.volume,
                 "fetched_at": quote.fetched_at.isoformat(),
                 "source": quote.source,
+                "currency": getattr(quote, "currency", "USD"),
                 "is_stale": quote.is_stale,
                 "stale_reason": quote.stale_reason,
             }
@@ -74,16 +78,20 @@ class CachedFallbackProvider(MarketDataProvider):
             pass
 
     def get_quote(self, symbol: str) -> Quote:
+        now = datetime.now(timezone.utc)
         # Check Redis if available
         redis_quote = self._get_from_redis(symbol)
-        if redis_quote and (datetime.utcnow() - redis_quote.fetched_at) < self._ttl:
-            return redis_quote
+        if redis_quote:
+            r_fetched_at = redis_quote.fetched_at if redis_quote.fetched_at.tzinfo else redis_quote.fetched_at.replace(tzinfo=timezone.utc)
+            if (now - r_fetched_at) < self._ttl:
+                return redis_quote
 
         # Check in-memory
         cached = self._cache.get(symbol)
-        fresh_enough = cached and (datetime.utcnow() - cached.fetched_at) < self._ttl
-        if fresh_enough:
-            return cached
+        if cached:
+            c_fetched_at = cached.fetched_at if cached.fetched_at.tzinfo else cached.fetched_at.replace(tzinfo=timezone.utc)
+            if (now - c_fetched_at) < self._ttl:
+                return cached
 
         try:
             quote = self._live.get_quote(symbol)
@@ -101,6 +109,7 @@ class CachedFallbackProvider(MarketDataProvider):
                     volume=fallback.volume,
                     fetched_at=fallback.fetched_at,
                     source=fallback.source,
+                    currency=getattr(fallback, "currency", "INR" if fallback.symbol.endswith(".NS") else "USD"),
                     is_stale=True,
                     stale_reason="provider_unavailable",
                 )
@@ -108,12 +117,15 @@ class CachedFallbackProvider(MarketDataProvider):
             raise
 
     def get_recent_history(self, symbol: str, days: int = 10) -> list[float]:
+        now = datetime.now(timezone.utc)
         cached = self._history_cache.get(symbol)
-        if cached and (datetime.utcnow() - cached[0]) < timedelta(hours=1):
-            return cached[1]
+        if cached:
+            c_time = cached[0] if cached[0].tzinfo else cached[0].replace(tzinfo=timezone.utc)
+            if (now - c_time) < timedelta(hours=1):
+                return cached[1]
         try:
             history = self._live.get_recent_history(symbol, days)
-            self._history_cache[symbol] = (datetime.utcnow(), history)
+            self._history_cache[symbol] = (now, history)
             return history
         except ProviderUnavailableError:
             if cached:
