@@ -75,12 +75,6 @@ delayed or unavailable.
 - **Checkpoints advance only on explicit acknowledgment** — refreshing the
   page must never silently erase the diff being shown to the user.
 
-## What we deliberately did not build
-
-Multiple watchlists, personalized threshold sliders, portfolio/brokerage
-features, Redis, microservices. Each is a reasonable next step, not a gap we
-missed — see the backend README for the reasoning behind each.
-
 ## Repo structure
 
 ```
