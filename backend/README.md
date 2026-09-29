@@ -80,12 +80,3 @@ class, not touching business logic.
   Supabase on every request — keeps auth fast and doesn't couple every
   watchlist read to Supabase's own availability.
 
-## What we deliberately did not build
-
-- Microservices, message queues, Kubernetes — no scaling need exists yet to
-  justify the operational complexity.
-- Redis — the in-memory TTL cache is correct for a single backend process;
-  Redis is the obvious next step if this runs across multiple processes.
-- Multiple watchlists per user, personalized threshold sliders, portfolio/
-  brokerage features — out of scope for the core thesis ("what changed since
-  I last looked"), noted as future work.
